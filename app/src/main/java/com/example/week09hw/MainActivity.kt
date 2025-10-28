@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,6 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ImageView
+import android.widget.TextView
+import android.media.MediaPlayer
+import android.provider.MediaStore
+import android.widget.Toast
+
 
 class MainActivity : ComponentActivity() {
 
@@ -67,6 +76,17 @@ private fun ActivityRoot(innerPadding: PaddingValues) {
     var p2DieIdx1 by remember { mutableIntStateOf(0) }
     var p2DieIdx2 by remember { mutableIntStateOf(0) }
 
+
+    //adding turns
+    var p1Turns by remember { mutableIntStateOf(0) }
+    var p2Turns by remember { mutableIntStateOf(0) }
+
+
+    //messages
+    var specialMessage by remember { mutableStateOf("") }
+    var winnerMessage by remember { mutableStateOf("") }
+
+
     // handlers
     fun handleNewGame() {
         p1Score = 0
@@ -75,18 +95,160 @@ private fun ActivityRoot(innerPadding: PaddingValues) {
         p1DieIdx2 = 0
         p2DieIdx1 = 0
         p2DieIdx2 = 0
+
+        //specific turns
+        p1Turns = 0
+        p2Turns = 0
+        specialMessage = ""
+        winnerMessage = ""
+    }
+
+
+    fun checkGameOver() {
+        if (p1Turns >= 10 && p2Turns >= 10) {
+            winnerMessage = when {
+                p1Score > p2Score -> "Player 1 Wins"
+                p2Score > p1Score -> "Player 2 Wins"
+                else -> "It's a tie"
+            }
+        }
+    }
+
+
+
+    //hissing stuff
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    fun playHissSound() {
+        val mp = MediaPlayer.create(context, R.raw.snake_hiss)
+        mp.start()
+        mp.setOnCompletionListener { it.release() }
+    }
+
+    fun playDesertSound(){
+        val mp = MediaPlayer.create(context, R.raw.desert)
+        mp.start()
+        mp.setOnCompletionListener { it.release() }
     }
 
     fun handleP1Roll() {
+        if (p1Turns >= 10) return
+
         p1DieIdx1 = rollDice()
         p1DieIdx2 = rollDice()
-        p1Score += p1DieIdx1 + p1DieIdx2 + 2
+
+        //make logic easier to deal w, don't hve to start w idx 0
+        val roll1 = p1DieIdx1 + 1
+        val roll2 = p1DieIdx2 + 1
+        var turnScore = roll1 + roll2
+        //two sixes
+        var bonusTurn = false
+
+        //reset
+        specialMessage = ""
+
+        //special rolls
+        when {
+            roll1 == 1 && roll2 == 1 -> {
+                specialMessage = "Snake Eyes! +10 points!"
+                turnScore += 10
+
+                //toast, snake
+                val imageView = ImageView(context)
+                imageView.setImageResource(R.drawable.snake)
+                val toast = Toast(context)
+                toast.view = imageView
+                toast.duration = Toast.LENGTH_SHORT
+                toast.show()
+                //hissing sound
+                playHissSound()
+            }
+            roll1 == 2 && roll2 == 2 -> {
+                specialMessage = "two+two is 4. 4 extra points."
+                turnScore += 4
+            }
+            roll1 == 6 && roll2 == 6 -> {
+                specialMessage = "two sixes, extra turn."
+                bonusTurn = true
+            }
+            roll1 == 3 && roll2 == 3 -> {
+                specialMessage = "Camels, you lose."
+                turnScore -= 10000
+
+                //toast, snake
+                val imageView = ImageView(context)
+                imageView.setImageResource(R.drawable.camel)
+                val toast = Toast(context)
+                toast.view = imageView
+                playDesertSound()
+                toast.duration = Toast.LENGTH_SHORT
+                toast.show()
+
+            }
+        }
+
+        p1Score += turnScore
+        if (!bonusTurn) p1Turns++
+        checkGameOver()
     }
 
     fun handleP2Roll() {
+        if (p2Turns >= 10) return
+
         p2DieIdx1 = rollDice()
         p2DieIdx2 = rollDice()
-        p2Score += p2DieIdx1 + p2DieIdx2 + 2
+        //make logic easier to deal w
+        val roll1 = p2DieIdx1 + 1
+        val roll2 = p2DieIdx2 + 1
+        var turnScore = roll1 + roll2
+        //two sixes
+        var bonusTurn = false
+
+        //reset
+        specialMessage = ""
+
+        //special rolls
+        when {
+            roll1 == 1 && roll2 == 1 -> {
+                specialMessage = "Snake Eyes! +10 points!"
+                turnScore += 10
+
+                //toast, snake
+                val imageView = ImageView(context)
+                imageView.setImageResource(R.drawable.snake)
+                val toast = Toast(context)
+                toast.view = imageView
+                toast.duration = Toast.LENGTH_SHORT
+                toast.show()
+                //hissing sound
+                playHissSound()
+            }
+            roll1 == 2 && roll2 == 2 -> {
+                specialMessage = "two+two is 4. 4 extra points."
+                turnScore += 4
+            }
+            roll1 == 6 && roll2 == 6 -> {
+                specialMessage = "two sixes, extra turn."
+                bonusTurn = true
+            }
+            roll1 == 3 && roll2 == 3 -> {
+                specialMessage = "Camels, you lose."
+                turnScore -= 1000
+
+                //toast, camel
+                val imageView = ImageView(context)
+                imageView.setImageResource(R.drawable.camel)
+                val toast = Toast(context)
+                toast.view = imageView
+                toast.duration = Toast.LENGTH_LONG
+                toast.show()
+                playDesertSound()
+            }
+        }
+
+        p2Score += turnScore
+        if (!bonusTurn) p2Turns++
+        checkGameOver()
     }
 
     Column(
@@ -95,45 +257,74 @@ private fun ActivityRoot(innerPadding: PaddingValues) {
             .padding(innerPadding),
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
-        // player 1
-        PlayerView(p1DieIdx1, p1DieIdx2, onClick = { handleP1Roll() })
+        //p1
+        PlayerView(
+            idx1 = p1DieIdx1,
+            idx2 = p1DieIdx2,
+            onClick = { handleP1Roll() },
+            label = "Player 1",
+            turns = p1Turns
+        )
 
-        // scores
+        //score+buttons
         Column(
-            modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = "P1: $p1Score", style = MaterialTheme.typography.headlineMedium)
-            Button(onClick = { handleNewGame() }, modifier = Modifier.padding(24.dp)) {
-                Text(text = "New Game")
+            Text(
+                text = "P1: $p1Score",
+                style = MaterialTheme.typography.headlineMedium
+            )
+            Text(
+                text = "P2: $p2Score",
+                style = MaterialTheme.typography.headlineMedium
+            )
+
+            if (specialMessage.isNotEmpty()) {
+                Text(
+                    text = specialMessage,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
-            Text(text = "P2: $p2Score", style = MaterialTheme.typography.headlineMedium)
+
+            if (winnerMessage.isNotEmpty()) {
+                Text(
+                    text = winnerMessage,
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+
+            Button(
+                onClick = { handleNewGame() },
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Text("New Game")
+            }
         }
 
-        // player 2
-        PlayerView(p2DieIdx1, p2DieIdx2, onClick = { handleP2Roll() })
-    }
-
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ActivityRootPreview() {
-    ActivityWrapper { innerPadding ->
-        ActivityRoot(innerPadding)
+        //plyr 2
+        PlayerView(
+            idx1 = p2DieIdx1,
+            idx2 = p2DieIdx2,
+            onClick = { handleP2Roll() },
+            label = "Player 2",
+            turns = p2Turns
+        )
     }
 }
-
 @Composable
-private fun PlayerView(idx1: Int, idx2: Int, onClick: (() -> Unit)) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+private fun PlayerView(idx1: Int, idx2: Int, onClick: () -> Unit, label: String, turns: Int) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = "$label — Turn ${turns + 1}/11")
         Row(
             modifier = Modifier
+                .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(12.dp)
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Die(idx1)
             Spacer(modifier = Modifier.width(12.dp))
@@ -142,12 +333,20 @@ private fun PlayerView(idx1: Int, idx2: Int, onClick: (() -> Unit)) {
     }
 }
 
+
 @Composable
 private fun Die(idx: Int) {
-    
     Image(
         painter = painterResource(id = dieArray[idx]),
         contentDescription = null,
         modifier = Modifier.width(128.dp)
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ActivityRootPreview() {
+    ActivityWrapper { innerPadding ->
+        ActivityRoot(innerPadding)
+    }
 }
